@@ -35,3 +35,4 @@ data/
 
 # OMC internal state
 .omc
+importer/givenergy-import

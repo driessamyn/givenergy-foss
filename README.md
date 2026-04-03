@@ -39,11 +39,34 @@ The system will have three components that can run together on a single device o
                                +-------------------+          +----------------+
 ```
 
-**Importer** — a command-line tool to download all your historical data from the GivEnergy cloud API. Run it once to rescue your data before the paywall kicks in. Will support resuming interrupted exports.
+**[Importer](importer/)** — a command-line tool to download all your historical data from the GivEnergy cloud API. Run it once to rescue your data before the paywall kicks in. Supports resuming interrupted exports. **Available now.**
 
 **Collector** — a lightweight service that will run on a Raspberry Pi (or similar) on your local network. It will connect to your inverter's WiFi dongle, read energy data at regular intervals, and forward it to the dashboard. Local buffering will ensure no readings are lost if the network drops.
 
 **Dashboard** — a web application with a pluggable storage backend. Will receive data from the collector, store it, and serve a web interface showing real-time power flow, historical charts, battery status, and inverter controls.
+
+## Quick start
+
+The importer is the first available component. Pre-built binaries will be published shortly — for now, build from source (requires [Go 1.23+](https://go.dev/dl/)):
+
+```sh
+# Build
+cd importer
+go build -o givenergy-import .
+
+# Create an API key at https://givenergy.cloud and set it
+export GIVENERGY_API_TOKEN="your-api-key"
+
+# Preview what will be exported
+./givenergy-import --dry-run
+
+# Export all historical data
+./givenergy-import --output ./data
+```
+
+The importer downloads your energy data as CSV files, organised by date. It picks up where it left off if interrupted — just run the same command again.
+
+See the [importer README](importer/README.md) for full usage and build instructions.
 
 ## Contributing
 
