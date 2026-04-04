@@ -47,7 +47,7 @@ The system will have three components that can run together on a single device o
 
 ## Quick start
 
-The importer is the first available component. Pre-built binaries will be published shortly — for now, build from source (requires [Go 1.23+](https://go.dev/dl/)):
+The importer is the first available component. Download a pre-built binary from the [latest release](https://github.com/driessamyn/givenergy-foss/releases), or build from source (requires [Go 1.23+](https://go.dev/dl/)):
 
 ```sh
 # Build

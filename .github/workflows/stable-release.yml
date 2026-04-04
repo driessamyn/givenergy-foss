@@ -1,0 +1,174 @@
+name: Stable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Version override (leave empty to auto-detect from conventional commits)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  tag:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: cliff-version
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --bumped-version
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [[ -n "${{ inputs.version_override }}" ]]; then
+            VERSION="${{ inputs.version_override }}"
+            [[ "$VERSION" != v* ]] && VERSION="v${VERSION}"
+          else
+            VERSION="${{ steps.cliff-version.outputs.version }}"
+            VERSION="${VERSION:-v0.1.0}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format: $VERSION (expected vMAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists"
+            exit 1
+          fi
+
+          echo "New version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --strip header --tag ${{ steps.resolve.outputs.version }}
+
+      - name: Create and push tag
+        id: tag
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+            ext: .exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: importer/go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          cd importer
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${{ needs.tag.outputs.version }}" \
+            -o "../dist/givenergy-import-${{ matrix.suffix }}${{ matrix.ext }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: givenergy-import-${{ matrix.suffix }}
+          path: dist/givenergy-import-${{ matrix.suffix }}${{ matrix.ext }}
+
+  release:
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum givenergy-import-* > checksums-sha256.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.tag.outputs.version }}
+          name: ${{ needs.tag.outputs.version }}
+          body: |
+            ${{ needs.tag.outputs.changelog }}
+
+            ## Downloads
+
+            | Platform | Binary |
+            |----------|--------|
+            | Linux (x86_64) | `givenergy-import-linux-amd64` |
+            | Linux (ARM64, Raspberry Pi) | `givenergy-import-linux-arm64` |
+            | macOS (Apple Silicon) | `givenergy-import-darwin-arm64` |
+            | macOS (Intel) | `givenergy-import-darwin-amd64` |
+            | Windows | `givenergy-import-windows-amd64.exe` |
+
+            ## Usage
+
+            ```sh
+            export GIVENERGY_API_TOKEN="your-api-key"
+            ./givenergy-import --dry-run
+            ./givenergy-import --output ./data
+            ```
+
+            See the [importer README](https://github.com/driessamyn/givenergy-foss/blob/main/importer/README.md) for full documentation.
+          prerelease: false
+          files: |
+            dist/givenergy-import-*
+            dist/checksums-sha256.txt
