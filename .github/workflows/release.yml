@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.content }}
+      is_stable: ${{ steps.resolve.outputs.is_stable }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get next version from git-cliff
+        id: cliff-version
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --bumped-version
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+          else
+            NEXT="${{ steps.cliff-version.outputs.version }}"
+            NEXT="${NEXT:-v0.1.0}"
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            echo "version=${NEXT}-beta.${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: >-
+            ${{ startsWith(github.ref, 'refs/tags/') && '--latest' || '--unreleased' }}
+            --strip header
+
+  build:
+    needs: [ci, version]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+            ext: .exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: importer/go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          cd importer
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${{ needs.version.outputs.version }}" \
+            -o "../dist/givenergy-import-${{ matrix.suffix }}${{ matrix.ext }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: givenergy-import-${{ matrix.suffix }}
+          path: dist/givenergy-import-${{ matrix.suffix }}${{ matrix.ext }}
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum givenergy-import-* > checksums-sha256.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.version }}
+          name: ${{ needs.version.outputs.version }}
+          body: |
+            ${{ needs.version.outputs.changelog }}
+
+            ## Downloads
+
+            | Platform | Binary |
+            |----------|--------|
+            | Linux (x86_64) | `givenergy-import-linux-amd64` |
+            | Linux (ARM64, Raspberry Pi) | `givenergy-import-linux-arm64` |
+            | macOS (Apple Silicon) | `givenergy-import-darwin-arm64` |
+            | macOS (Intel) | `givenergy-import-darwin-amd64` |
+            | Windows | `givenergy-import-windows-amd64.exe` |
+
+            ## Usage
+
+            ```sh
+            export GIVENERGY_API_TOKEN="your-api-key"
+            ./givenergy-import --dry-run
+            ./givenergy-import --output ./data
+            ```
+
+            See the [importer README](https://github.com/driessamyn/givenergy-foss/blob/main/importer/README.md) for full documentation.
+          prerelease: ${{ needs.version.outputs.is_stable != 'true' }}
+          files: |
+            dist/givenergy-import-*
+            dist/checksums-sha256.txt

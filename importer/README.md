@@ -2,7 +2,7 @@
 
 Command-line tool to export your historical energy data from the GivEnergy cloud API. Produces CSV files organised by date, ready for analysis or import into the dashboard (when available).
 
-Pre-built binaries for common platforms will be published soon. For now, build from source.
+Download a pre-built binary from the [latest release](https://github.com/driessamyn/givenergy-foss/releases), or build from source.
 
 ## Building
 
