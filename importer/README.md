@@ -2,9 +2,33 @@
 
 Command-line tool to export your historical energy data from the GivEnergy cloud API. Produces CSV files organised by date, ready for analysis or import into the dashboard (when available).
 
-Download a pre-built binary from the [latest release](https://github.com/driessamyn/givenergy-foss/releases), or build from source.
+## Installation
 
-## Building
+Download the latest binary for your platform:
+
+```sh
+# Linux (x86_64)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-linux-amd64 -o givenergy-import && chmod +x givenergy-import
+
+# Linux (ARM64 / Raspberry Pi)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-linux-arm64 -o givenergy-import && chmod +x givenergy-import
+
+# macOS (Apple Silicon)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-darwin-arm64 -o givenergy-import && chmod +x givenergy-import
+
+# macOS (Intel)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-darwin-amd64 -o givenergy-import && chmod +x givenergy-import
+```
+
+On Windows, download `givenergy-import-windows-amd64.exe` from the [latest release](https://github.com/driessamyn/givenergy-foss/releases/latest).
+
+Verify it works:
+
+```sh
+./givenergy-import --version
+```
+
+## Building from source
 
 Requires [Go 1.23+](https://go.dev/dl/).
 

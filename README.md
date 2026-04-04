@@ -47,13 +47,27 @@ The system will have three components that can run together on a single device o
 
 ## Quick start
 
-The importer is the first available component. Download a pre-built binary from the [latest release](https://github.com/driessamyn/givenergy-foss/releases), or build from source (requires [Go 1.23+](https://go.dev/dl/)):
+The importer is the first available component. Download and run it in one line:
 
 ```sh
-# Build
-cd importer
-go build -o givenergy-import .
+# Linux (x86_64)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-linux-amd64 -o givenergy-import && chmod +x givenergy-import
 
+# Linux (ARM64 / Raspberry Pi)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-linux-arm64 -o givenergy-import && chmod +x givenergy-import
+
+# macOS (Apple Silicon)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-darwin-arm64 -o givenergy-import && chmod +x givenergy-import
+
+# macOS (Intel)
+curl -sL https://github.com/driessamyn/givenergy-foss/releases/latest/download/givenergy-import-darwin-amd64 -o givenergy-import && chmod +x givenergy-import
+```
+
+On Windows, download `givenergy-import-windows-amd64.exe` from the [latest release](https://github.com/driessamyn/givenergy-foss/releases/latest).
+
+Then export your data:
+
+```sh
 # Create an API key at https://givenergy.cloud and set it
 export GIVENERGY_API_TOKEN="your-api-key"
 
@@ -66,7 +80,7 @@ export GIVENERGY_API_TOKEN="your-api-key"
 
 The importer downloads your energy data as CSV files, organised by date. It picks up where it left off if interrupted — just run the same command again.
 
-See the [importer README](importer/README.md) for full usage and build instructions.
+You can also [build from source](importer/README.md#building) if you prefer.
 
 ## Contributing
 
